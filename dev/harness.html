@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Panel harness</title>
+  <link rel="stylesheet" href="../extension/sidepanel.css">
+  <style>
+    .harness { display: flex; gap: 8px; padding: 8px 20px; font-size: 12px; border-bottom: 1px dashed var(--border); color: var(--text-muted); }
+    .harness select { font: inherit; }
+  </style>
+</head>
+<body>
+  <!-- Dev only: renders the real panel view with saved threads, no Gmail or chrome APIs. Run `npm run harness`. -->
+  <div class="harness">
+    Fixture
+    <select id="pick">
+      <option value="nested">sample: nested history</option>
+      <option value="report">sample: report thread</option>
+      <option value="state/auth">state: connect</option>
+      <option value="state/loading">state: loading</option>
+    </select>
+  </div>
+  <main id="app"></main>
+
+  <script>var module = { exports: {} };</script>
+  <script src="../test/fixtures/samples.js"></script>
+  <script>var Samples = module.exports; module = undefined;</script>
+  <script src="../extension/engine/clean.js"></script>
+  <script src="../extension/lib/format.js"></script>
+  <script src="../extension/lib/view.js"></script>
+  <script>
+    var root = document.getElementById('app');
+    var pick = document.getElementById('pick');
+    var PLACEHOLDER = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="640" height="300"><rect width="640" height="300" fill="#c9d3e0"/><text x="320" y="160" font-family="sans-serif" font-size="22" text-anchor="middle" fill="#4a5568">inline image</text></svg>');
+
+    function cidsOf(html) {
+      var out = [];
+      String(html || '').replace(/src=["']cid:([^"']+)["']/gi, function (_, c) { out.push(c); });
+      return out;
+    }
+
+    function asMessages(thread) {
+      return thread.messages.map(function (m, i) {
+        var cids = cidsOf(m.htmlBody);
+        return {
+          id: 'm' + i,
+          htmlCids: cids,
+          attachments: (m.attachments || []).map(function (a, j) {
+            var inline = cids.some(function (c) { return c.indexOf(a.filename) === 0; });
+            return { filename: a.filename, mimeType: a.mimeType, size: 24000 + j * 9000, contentId: inline ? cids.filter(function (c) { return c.indexOf(a.filename) === 0; })[0] : '', inline: inline };
+          })
+        };
+      });
+    }
+
+    function show(thread) {
+      var cleaned = ThreadCleaner.cleanThread(thread);
+      var messages = asMessages(thread);
+      PanelView.thread(root, { subject: cleaned.subject, entries: cleaned.entries, messages: messages }, {
+        copy: function (format, ei) {
+          var entries = ei === undefined ? cleaned.entries : [cleaned.entries[ei]];
+          var text = format === 'md' ? Format.toMarkdown(ei === undefined ? cleaned.subject : '', entries, messages) : Format.toPlainText('', entries, messages);
+          window.lastCopy = text;
+          return Promise.resolve();
+        },
+        refresh: function () { load(); },
+        loadImage: function () { return Promise.resolve(PLACEHOLDER); },
+        download: function () {}
+      });
+    }
+
+    function load() {
+      var v = pick.value;
+      history.replaceState(null, '', '?f=' + encodeURIComponent(v));
+      if (v === 'nested') return show(Samples.nestedThread);
+      if (v === 'report') return show(Samples.reportThread);
+      if (v === 'state/auth') return PanelView.notice(root, 'Connect Gmail', 'Sign in once with your Google account to read threads. Read-only access.', { label: 'Connect', onClick: function () {} });
+      if (v === 'state/loading') return PanelView.loading(root);
+      fetch('../test/fixtures/' + v + '.json').then(function (r) { return r.json(); }).then(function (t) {
+        t.messages.forEach(function (m) { m.date = /^\d{4}-/.test(m.date) ? new Date(m.date) : m.date; });
+        show(t);
+      });
+    }
+
+    pick.value = new URLSearchParams(location.search).get('f') || 'nested';
+    pick.addEventListener('change', load);
+    load();
+  </script>
+</body>
+</html>

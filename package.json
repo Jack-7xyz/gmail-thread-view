@@ -1,0 +1,15 @@
+{
+  "name": "gmail-thread-view",
+  "private": true,
+  "description": "Chrome extension: read Gmail threads as a clean, Slack-style timeline in Chrome's side panel. Read-only.",
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test \"test/*.test.js\"",
+    "build": "node scripts/build.js",
+    "keygen": "node scripts/keygen.js",
+    "redirect-uri": "node scripts/redirect-uri.js",
+    "icons": "node scripts/make-icons.js",
+    "harness": "python3 -m http.server 8787",
+    "setup": "node scripts/setup.js"
+  }
+}

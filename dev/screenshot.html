@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Thread View for Gmail: before and after</title>
+  <link rel="stylesheet" href="../extension/sidepanel.css">
+  <style>
+    /* README image (docs/screenshot.png). Sample mail only. Capture: serve the repo (npm run harness), then
+       Chrome --headless=new --force-device-scale-factor=2 --window-size=1600,1000 --screenshot=docs/screenshot.png http://127.0.0.1:8787/dev/screenshot.html */
+    :root { color-scheme: light; }
+    /* always the light panel, whatever the machine's theme */
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #ffffff; --bg-raised: #f6f7f9; --bg-hover: #f1f3f4; --text: #1f1f1f; --text-muted: #5f6368;
+        --text-faint: #80868b; --border: #e3e5e8; --accent: #0b57d0; --accent-soft: #e8f0fe; --chip: #eef1f4; --skeleton: #eceef1;
+      }
+    }
+    html, body { background: #eef1f5; }
+    .stage { width: 1600px; height: 1000px; padding: 44px 56px; box-sizing: border-box; display: flex; flex-direction: column; gap: 26px; }
+    .hero { display: flex; align-items: baseline; justify-content: space-between; }
+    .hero h1 { margin: 0; font-size: 34px; letter-spacing: -0.02em; color: #111; }
+    .hero p { margin: 0; font-size: 18px; color: #4b5563; }
+    .cols { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 36px; min-height: 0; }
+    .col { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+    .label { font-size: 14px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #6b7280; }
+    .label b { color: #0b57d0; }
+    .frame { flex: 1; min-height: 0; overflow: hidden; border-radius: 14px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.06), 0 12px 32px rgba(15,23,42,.10); position: relative; }
+
+    /* before: a generic mail client showing the raw message */
+    .mail { padding: 26px 30px; font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; color: #202124; }
+    .mail h2 { margin: 0 0 16px; font-size: 21px; font-weight: 500; }
+    .from { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; }
+    .from .av { width: 38px; height: 38px; border-radius: 50%; background: #5f6368; color: #fff; display: grid; place-items: center; font-weight: 600; }
+    .from small { display: block; color: #5f6368; font-size: 12.5px; }
+    .raw { white-space: pre-wrap; font-size: 13.5px; }
+    .raw .q { display: block; color: #5f6368; border-left: 2px solid #dadce0; padding-left: 10px; }
+    .fade { position: absolute; left: 0; right: 0; bottom: 0; height: 120px; background: linear-gradient(transparent, #fff 75%); display: flex; align-items: flex-end; justify-content: center; padding-bottom: 18px; font-size: 13px; font-weight: 600; color: #b42318; }
+
+    /* after: the real panel */
+    .frame #app { height: 100%; overflow: hidden; }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <div class="hero">
+      <h1>Thread View for Gmail</h1>
+      <p>Read long email threads like a chat. Quotes, signatures and disclaimers gone.</p>
+    </div>
+    <div class="cols">
+      <div class="col">
+        <div class="label">Before: one email, four messages buried in quotes</div>
+        <div class="frame">
+          <div class="mail">
+            <h2 id="subject"></h2>
+            <div class="from"><div class="av">SL</div><div><strong>Sam Lee</strong> &lt;sam@example.com&gt;<small>to Dana, Pat, Alex</small></div></div>
+            <div class="raw" id="raw"></div>
+          </div>
+          <div class="fade" id="more"></div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="label"><b>After</b>: Thread View in Chrome's side panel</div>
+        <div class="frame"><main id="app"></main></div>
+      </div>
+    </div>
+  </div>
+
+  <script>var module = { exports: {} };</script>
+  <script src="../test/fixtures/samples.js"></script>
+  <script>var Samples = module.exports; module = undefined;</script>
+  <script src="../extension/engine/clean.js"></script>
+  <script src="../extension/lib/format.js"></script>
+  <script src="../extension/lib/view.js"></script>
+  <script>
+    var thread = Samples.nestedThread;
+    var body = thread.messages[0].plainBody;
+    document.getElementById('subject').textContent = thread.subject;
+
+    var lines = body.split('\n');
+    document.getElementById('raw').innerHTML = lines.map(function (l) {
+      var safe = Format.escapeHtml(l.replace(/^> ?/, '')).replace(/\*([^*\n]+?)\*/g, '<strong>$1</strong>') || '&nbsp;';
+      return /^>/.test(l) ? '<span class="q">' + safe + '</span>' : safe + '\n';
+    }).join('');
+    document.getElementById('more').textContent = lines.length + ' lines of quotes, signatures and disclaimers';
+
+    var cleaned = ThreadCleaner.cleanThread(thread);
+    var messages = thread.messages.map(function (m, i) {
+      return { id: 'm' + i, htmlCids: [], attachments: (m.attachments || []).map(function (a) { return { filename: a.filename, size: 412000, inline: false }; }) };
+    });
+    PanelView.thread(document.getElementById('app'), { subject: cleaned.subject, entries: cleaned.entries, messages: messages }, {
+      copy: function () { return Promise.resolve(); },
+      refresh: function () {},
+      loadImage: function () { return Promise.resolve(null); },
+      download: function () {}
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+# local settings: extension key, OAuth client ID
+.env
+.env.*
+!.env.example
+
+# built extension (contains the values above)
+dist/
+
+# real mail used for local tuning
+test/fixtures/private/*
+!test/fixtures/private/.gitkeep
+
+node_modules/
+.DS_Store
